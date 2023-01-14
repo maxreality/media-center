@@ -1,0 +1,143 @@
+version: "3"
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPNSP=private internet access
+      - OPENVPN_USER=${PIA_USERNAME}
+      - OPENVPN_PASSWORD=${PIA_PASSWORD}
+      - REGION=US Denver,US West,US East
+    ports:
+      - 51413:51413 #Transmission
+      - 51413:51413/udp #Transmission
+      - 9091:9091 #Transmission UI
+
+  transmission:
+    image: lscr.io/linuxserver/transmission
+    container_name: transmission
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+    volumes:
+      - /mnt/docker/media/appdata/transmission/config:/config
+      - /mnt/ds920/media/downloads:/downloads
+      - /mnt/ds920/media/appdata/transmission/watch:/watch
+    depends_on:
+      - "gluetun"
+    restart: "no" 
+
+  plex:
+    image: linuxserver/plex:latest
+    restart: "no"
+    container_name: plex
+    network_mode: "host"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      # Docker bind mounts are used to store config and media on the host's filesystem. Config for plex will be stored
+      # in /mnt/docker/media/appdata/plex/config directory and any transcoding data is stored in a transcode directory
+      - /mnt/docker/media/appdata/plex/config:/config
+      - /mnt/docker/media/appdata/plex/transcode:/transcode
+      # Within plex, we are mounting the root of /mnt/docker/media to /all_media directory. So within plex, when you look
+      # inside /all_media directory you would see the same file structure as /mnt/docker/media on the host
+      - /mnt/ds920/media:/all_media
+
+  jackett:
+    image: linuxserver/jackett:latest
+    restart: "no"
+    depends_on:
+      - "transmission"
+    container_name: jackett
+    network_mode: "host"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+    volumes:
+      - /mnt/docker/media/appdata/jackett:/config
+      - /mnt/ds920/media/downloads:/downloads
+
+  radarr:
+    image: linuxserver/radarr:latest
+    restart: "no"
+    depends_on:
+      - "transmission"
+    container_name: radarr
+    network_mode: "host"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+    volumes:
+      # Radarr needs to know where the downloaded media is. This is told to radarr by transmission
+      - /mnt/ds920/media/downloads:/downloads
+      - /mnt/ds920/media/downloads:/data
+      # config directory
+      - /mnt/docker/media/appdata/radarr:/config
+      # Movies imported by radarr are stored in /mnt/docker/media/movies directory on the host. Radarr sees this directory
+      # as /movies. Within radarr make your root folder as /movies
+      - /mnt/ds920/media/movies:/movies
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    restart: "no"
+    depends_on:
+      - "transmission"
+    container_name: sonarr
+    network_mode: "host"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+    volumes:
+      # sonarr needs to know where the downloaded media is. This is told to sonarr by transmission
+      - /mnt/ds920/media/downloads:/downloads
+      - /mnt/ds920/media/downloads:/data
+      # config directory
+      - /mnt/docker/media/appdata/sonarr:/config
+      # TV shows imported by sonarr are stored in /mnt/docker/media/tv_shows directory on the host. sonarr sees this directory
+      # as /tv. Within sonarr make your root folder as /tv
+      - /mnt/ds920/media/tv_shows:/tv
+
+  tautulli:
+    image: linuxserver/tautulli:latest
+    restart: "no"
+    container_name: tautulli
+    network_mode: "host"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+    volumes:
+      # config directory
+      - /mnt/docker/media/appdata/tautulli:/config
+      # Tautulli needs access to plex logs. In the plex container we mounted /mnt/docker/media/appdata/plex of the host as the
+      # config directory for plex. Logs are located within this config directory
+      - /mnt/docker/media/appdata/plex/config/Library/Application Support/Plex Media Server/Logs:/logs
+
+  nzbget:
+    image: lscr.io/linuxserver/nzbget:latest
+    container_name: nzbget
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+      - NZBGET_USER=${NZBGET_USER} #optional
+      - NZBGET_PASS=${NZBGET_PASSWORD} #optional
+    volumes:
+      - /path/to/data:/config
+      - /mnt/ds920/media/downloads/usenet:/downloads
+    ports:
+      - 6789:6789
+    restart: unless-stopped
