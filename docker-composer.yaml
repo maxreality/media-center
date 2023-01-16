@@ -31,6 +31,21 @@ services:
       - "gluetun"
     restart: "no" 
 
+  nzbget:
+    image: lscr.io/linuxserver/nzbget:latest
+    container_name: nzbget
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=US/Mountain
+      - NZBGET_USER=${NZBGET_USER} #optional
+      - NZBGET_PASS=${NZBGET_PASSWORD} #optional
+    volumes:
+      - /path/to/data:/config
+      - /mnt/ds920/media/downloads/usenet:/downloads
+    restart: unless-stopped
+
   plex:
     image: linuxserver/plex:latest
     restart: "no"
@@ -125,19 +140,3 @@ services:
       # Tautulli needs access to plex logs. In the plex container we mounted /mnt/docker/media/appdata/plex of the host as the
       # config directory for plex. Logs are located within this config directory
       - /mnt/docker/media/appdata/plex/config/Library/Application Support/Plex Media Server/Logs:/logs
-
-  nzbget:
-    image: lscr.io/linuxserver/nzbget:latest
-    container_name: nzbget
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=US/Mountain
-      - NZBGET_USER=${NZBGET_USER} #optional
-      - NZBGET_PASS=${NZBGET_PASSWORD} #optional
-    volumes:
-      - /path/to/data:/config
-      - /mnt/ds920/media/downloads/usenet:/downloads
-    ports:
-      - 6789:6789
-    restart: unless-stopped
